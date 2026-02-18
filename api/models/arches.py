@@ -229,6 +229,53 @@ class Concept(models.Model):
 	def uri(self):
 		return str(self.thesaurus.instance.url).rstrip('/') + '/' + str(self.conceptid)
 
+	def _get_search_page(self, page=1):
+		filter = [{'inverted': False, 'type': 'concept', 'value': str(self.conceptid), 'selected': True}]
+		query = {'paging-filter': page, 'tiles': 'true', 'format': 'tilecsv', 'reportlink': 'true', 'language': '*', 'term-filter': json.dumps(filter)}
+		url = str(self.thesaurus.instance.url).rstrip('/') + "/search/resources?" + urlencode(query)
+		try:
+			with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+				data = r.json()
+		except:
+			data = {}
+		if not 'results' in data:
+			return []
+		if not 'hits' in data['results']:
+			return []
+		if not 'hits' in data['results']['hits']:
+			return []
+		ret = []
+		for x in data['results']['hits']['hits']:
+			if '_source' in x:
+				x['_source']['source'] = {"url": str(self.thesaurus.instance.url), "label": str(self.thesaurus.instance.label)}
+				if 'resourceinstanceid' in x['_source']:
+					x['_source']['url'] = str(self.thesaurus.instance.url).rstrip('/') + "/report/" + str(x['_source']['resourceinstanceid'])
+			ret.append(x)
+		return ret
+
+	def search(self):
+		"""
+		Search the Arches instance for resources matching this concept.
+
+		:returns: list of results (possibly empty)
+		:rtype: list
+		"""
+		ret = []
+		dt_limit = datetime.datetime.now() + datetime.timedelta(seconds=settings.ARCHES_SEARCH_TIMEOUT)
+		i = 1
+		while True:
+			page = self._get_search_page(i)
+			i = i + 1
+			if len(page) == 0:
+				break
+			if datetime.datetime.now() >= dt_limit:
+				break
+			ret = ret + page
+		return ret
+	
+	def __str__(self):
+		return self.label
+
 	class Meta:
 		unique_together = ('thesaurus', 'conceptid',)
 

@@ -2,21 +2,16 @@
   <div id="infoboxes">
     <details class="sidebar-collapsible" open="">
       <summary class="title">Semantic Data</summary>
-      {% for concept in concepts %}
-      <aside class="infobox">
-        <h2 class="title">{{ concept.label }}</h2>
-        <div class="attributes">
-        <dl>
-            <dt><bdi>URI : </bdi></dt>
-            <dd><bdi>{{ concept.uri }}</bdi></dd>
-        </dl>
-        <dl>
-            <dt><bdi>Source : </bdi></dt>
-            <dd><bdi>{{ concept.source }}</bdi></dd>
-        </dl>
-        </div>
-      </aside>
-      {% endfor %}
+      <form action="/search" method="POST">
+
+        {% for concept in concepts %}
+          {% include 'search/results_concept_panel.html' %}
+        {% endfor %}
+
+        <div class="options-selected"><input type="submit" value="Advanced Search"/></div>
+        <input type="hidden" name="previousquery" value="{{ query }}"/>
+
+      </form>
     </details>
   </div>
 </div>
