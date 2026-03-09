@@ -21,6 +21,7 @@ INSTALLED_APPS = [
 	'django.contrib.sessions',
 	'django.contrib.messages',
 	'django.contrib.staticfiles',
+	'adminlte3',
 	'rest_framework',
 	'api.apps.ApiConfig',
 	'search.apps.SearchConfig',
