@@ -1,7 +1,7 @@
 from rdflib.namespace import RDF, SKOS
 from ..models import GraphModel, Thesaurus, Concept, ConceptPredicate, ConceptProperty
 from tqdm import tqdm
-import json
+import json, uuid
 
 def load_instance_models(arches):
 	"""Loads the resource models contained within an Arches instance, and stores them locally."""
@@ -56,6 +56,12 @@ def __convert_arches_skos_to_string(value):
 
 def __create_or_get_concept(uri, thesaurus=None):
 	concept_id = str(uri).replace('#', '/').split('/')[-1]
+	if len(concept_id) != 36:
+		concept_id = concept_id[-36:]
+	try:
+		id = uuid.UUID(concept_id) # check to make sure this is a valid UUID, we'll have problems otherwise
+	except:
+		return None
 	try:
 		concept = Concept.objects.get(thesaurus=thesaurus, conceptid=concept_id)
 	except:
@@ -95,6 +101,8 @@ def import_thesaurus(thesaurus, quiet=True):
 	with tqdm(concepts, leave=False, bar_format=bar_format) as prog:
 		for concept in prog:
 			item = __create_or_get_concept(str(concept), thesaurus)
+			if item is None:
+				continue # This tends to happen if the remote Arches isn't set up correctly. Nothing we can do, so skip.
 			for s, p, o in g.triples((concept, None, None)):
 				if o.__class__.__name__ == 'URIRef':
 					continue

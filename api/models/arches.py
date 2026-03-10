@@ -84,8 +84,11 @@ class ArchesInstance(models.Model):
 		:rtype: dict
 		"""
 		url = self.url.rstrip('/') + "/concepts/tree/semantic"
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
-			return r.json()
+		try:
+			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
+				return r.json()
+		except:
+			return []
 
 	def _get_search_page(self, query_string, page=1):
 		filter = [{'inverted': False, 'type': 'string', 'context': '', 'context_label': '', 'id': query_string, 'text': 'Contains Term: ' + query_string, 'value': query_string, 'selected': True}]
@@ -227,7 +230,7 @@ class Concept(models.Model):
 	
 	@property
 	def uri(self):
-		return str(self.thesaurus.instance.url).rstrip('/') + '/' + str(self.conceptid)
+		return str(self.thesaurus.instance.url).rstrip('/') + '/concepts/' + str(self.conceptid)
 
 	def _get_search_page(self, page=1):
 		filter = [{'inverted': False, 'type': 'concept', 'value': str(self.conceptid), 'selected': True}]
