@@ -12,7 +12,10 @@ from django.core.validators import validate_slug
 from django.contrib.auth.models import User
 from urllib.parse import urlencode
 from rdflib import Graph
-import uuid, requests, json, datetime
+import uuid, requests, json, datetime, logging
+
+logging.captureWarnings(True)
+logger = logging.getLogger(__name__)
 
 class ArchesInstance(models.Model):
 	"""
@@ -47,7 +50,7 @@ class ArchesInstance(models.Model):
 		"""
 		url = self.url.rstrip('/') + "/search_component_data/resource-type-filter"
 		data = {}
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+		with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 			data = r.json()
 		if data is None:
 			return None
@@ -64,7 +67,7 @@ class ArchesInstance(models.Model):
 		:raises requests.RequestException: on network or response errors
 		"""
 		url = self.url.rstrip('/') + "/search_component_data/advanced-search"
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+		with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 			return r.json()
 	def get_collections(self):
 		"""
@@ -74,7 +77,7 @@ class ArchesInstance(models.Model):
 		:rtype: dict
 		"""
 		url = self.url.rstrip('/') + "/concepts/tree/collections"
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+		with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 			return r.json()
 	def get_thesauri(self):
 		"""
@@ -95,7 +98,7 @@ class ArchesInstance(models.Model):
 		query = {'paging-filter': page, 'tiles': 'true', 'format': 'tilecsv', 'reportlink': 'true', 'language': '*', 'term-filter': json.dumps(filter)}
 		url = self.url.rstrip('/') + "/search/resources?" + urlencode(query)
 		try:
-			with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 				data = r.json()
 		except:
 			data = {}
@@ -210,7 +213,8 @@ class Thesaurus(models.Model):
 	
 	def load_skos(self):
 		g = Graph()
-		g.parse(self.skos_url, format='xml')
+		with requests.get(self.skos_url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
+			g.parse(data=r.content, format='xml')
 		return g
 	
 	def build_description(self):
@@ -237,7 +241,7 @@ class Concept(models.Model):
 		query = {'paging-filter': page, 'tiles': 'true', 'format': 'tilecsv', 'reportlink': 'true', 'language': '*', 'term-filter': json.dumps(filter)}
 		url = str(self.thesaurus.instance.url).rstrip('/') + "/search/resources?" + urlencode(query)
 		try:
-			with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 				data = r.json()
 		except:
 			data = {}
