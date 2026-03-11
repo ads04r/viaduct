@@ -10,9 +10,12 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import validate_slug
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from urllib.parse import urlencode
 from rdflib import Graph
-import uuid, requests, json, datetime, logging
+from rdflib.namespace import RDF, SKOS, DC, DCTERMS, FOAF, DOAP, VOID, XSD
+from rdflib.term import URIRef, Literal
+import uuid, requests, json, datetime, logging, hashlib
 
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
@@ -117,7 +120,7 @@ class ArchesInstance(models.Model):
 			ret.append(x)
 		return ret
 
-	def search(self, query_string):
+	def keyword_search(self, query_string):
 		"""
 		Search the Arches instance for resources matching query_string.
 
@@ -131,6 +134,10 @@ class ArchesInstance(models.Model):
 			>>> instance.search('mosque')
 			[{'_id': '...', '_source': ...}, ...]
 		"""
+		cache_key = 'keyword_' + str(self.pk) + '_' + hashlib.sha1(query_string.lower().encode('utf8')).hexdigest()
+		ret = cache.get(cache_key)
+		if not ret is None:
+			return ret
 		ret = []
 		dt_limit = datetime.datetime.now() + datetime.timedelta(seconds=settings.ARCHES_SEARCH_TIMEOUT)
 		i = 1
@@ -142,6 +149,7 @@ class ArchesInstance(models.Model):
 			if datetime.datetime.now() >= dt_limit:
 				break
 			ret = ret + page
+		cache.set(cache_key, ret, 900) # Cache the results for 15 minutes
 		return ret
 	
 	def __str__(self):
@@ -240,6 +248,7 @@ class Concept(models.Model):
 		filter = [{'inverted': False, 'type': 'concept', 'value': str(self.conceptid), 'selected': True}]
 		query = {'paging-filter': page, 'tiles': 'true', 'format': 'tilecsv', 'reportlink': 'true', 'language': '*', 'term-filter': json.dumps(filter)}
 		url = str(self.thesaurus.instance.url).rstrip('/') + "/search/resources?" + urlencode(query)
+		print(url)
 		try:
 			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 				data = r.json()
@@ -279,15 +288,37 @@ class Concept(models.Model):
 				break
 			ret = ret + page
 		return ret
-	
+
+	def rdf(self):
+		g = Graph()
+		s = URIRef(self.uri)
+		g.add((s, RDF.type, SKOS.Concept))
+		for pred in self.predicates.all():
+			if not hasattr(SKOS, pred.property):
+				continue
+			g.add((s, getattr(SKOS, pred.property), URIRef(pred.object.uri)))
+		for pred in self.predicates_rev.all():
+			if not hasattr(SKOS, pred.property):
+				continue
+			g.add((URIRef(pred.subject.uri), getattr(SKOS, pred.property), s))
+		for prop in self.properties.all():
+			prop_uri = None
+			for ns in [SKOS, DC, DCTERMS, RDF, DOAP, VOID, XSD, FOAF]:
+				if hasattr(ns, prop.property):
+					prop_uri = getattr(ns, prop.property)
+					break
+			if prop_uri is None:
+				continue
+			g.add((s, prop_uri, Literal(prop.value, lang=prop.lang)))
+
+		return g
+
 	def __str__(self):
-		return self.label
+		return str(self.thesaurus) + ' / ' + str(self.label)
 
 	class Meta:
 		unique_together = ('thesaurus', 'conceptid',)
 
-	def __str__(self):
-		return str(self.thesaurus) + ' / ' + str(self.label)
 
 class ConceptProperty(models.Model):
 
@@ -302,3 +333,11 @@ class ConceptPredicate(models.Model):
 	subject = models.ForeignKey(Concept, on_delete=models.CASCADE, related_name='predicates')
 	property = models.SlugField(max_length=128)
 	object = models.ForeignKey(Concept, on_delete=models.CASCADE, related_name='predicates_rev')
+
+class ConceptContext(models.Model):
+
+	contextid = models.UUIDField(default=uuid.uuid4)
+	concept = models.ForeignKey(Concept, on_delete=models.CASCADE, related_name='contexts')
+	label = models.CharField(max_length=128, blank=True, null=True)
+	class Meta:
+		unique_together = ('concept', 'contextid',)
