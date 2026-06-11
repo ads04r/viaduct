@@ -1,0 +1,38 @@
+from pathlib import Path
+from django.utils.log import DEFAULT_LOGGING
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = 'blah'
+DEBUG = True
+ALLOWED_HOSTS = ['*']
+
+DATABASES = {
+	'default': {
+		'ENGINE': 'django.db.backends.sqlite3',
+		'NAME': BASE_DIR / 'db.sqlite3',
+	}
+}
+
+LANGUAGE_CODE = 'en-gb'
+TIME_ZONE = 'Europe/London'
+USE_I18N = True
+USE_TZ = True
+
+MAPBOX_KEY = "blah"
+STATIC_ROOT = BASE_DIR / 'static'
+
+LOGGING = DEFAULT_LOGGING
+LOGGING['formatters']['simple'] = {"format": "{levelname} {message}", "style": "{"}
+LOGGING['formatters']['verbose'] = {"format": "{name} {levelname} {asctime} {module} {process:d} {thread:d} {message}", "style": "{"}
+LOGGING['handlers']['viaduct_log_file'] = {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": BASE_DIR / 'viaduct.log',
+        "formatter": "verbose"
+}
+LOGGING['loggers']['search'] = {
+        "handlers": ['viaduct_log_file'],
+        "level": "INFO",
+        "propagate": True
+}

@@ -24,13 +24,3 @@ Tests can be run with Django:
 Push to your fork and [submit a pull request][pr].
 
 [pr]: https://github.com/marea-project/viaduct/compare/
-
-At this point you're waiting on us. We like to at least comment on pull requests
-within three days (ideally sooner). We may suggest
-some changes or improvements or alternatives.
-
-Some things that will increase the chance that your pull request will be accepted:
-
-* The request fixes an open issue
-* The request addresses a feature previously mentioned in a discussion
-* You have written a good (that is, detailed and well explained) commit message.
