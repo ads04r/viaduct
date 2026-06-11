@@ -8,7 +8,7 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0005_remove_conceptpredicate_thesaurus'),
+        ('api', '0006_graphmodel_cached_schema'),
     ]
 
     operations = [

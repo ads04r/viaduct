@@ -190,10 +190,24 @@ class GraphModel(models.Model):
 	config = models.JSONField(db_column="config", default=dict)
 	created_time = models.DateTimeField(auto_now_add=True)
 	updated_time = models.DateTimeField(auto_now=True)
+	cached_schema = models.JSONField(null=True, blank=True)
 
 	@property
 	def export_url(self):
 		return self.instance.url.rstrip('/') + '/graph/' + str(self.graphid) + '/export'
+	
+	def load_schema(self, ignore_cache=False):
+		if ignore_cache == False:
+			if self.cached_schema:
+				return self.cached_schema['graph']
+		data = {}
+		with requests.get(self.export_url, headers={'User-Agent': settings.USER_AGENT}) as r:
+			data = r.json()
+		if data is None:
+			return None
+		self.cached_schema = data
+		self.save(update_fields=['cached_schema'])
+		return data['graph']
 
 	class Meta:
 		unique_together = ('instance', 'graphid',)
