@@ -10,9 +10,15 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import validate_slug
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from urllib.parse import urlencode
 from rdflib import Graph
-import uuid, requests, json, datetime
+from rdflib.namespace import RDF, SKOS, DC, DCTERMS, FOAF, DOAP, VOID, XSD
+from rdflib.term import URIRef, Literal
+import uuid, requests, json, datetime, logging, hashlib
+
+logging.captureWarnings(True)
+logger = logging.getLogger(__name__)
 
 class ArchesInstance(models.Model):
 	"""
@@ -47,7 +53,7 @@ class ArchesInstance(models.Model):
 		"""
 		url = self.url.rstrip('/') + "/search_component_data/resource-type-filter"
 		data = {}
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+		with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 			data = r.json()
 		if data is None:
 			return None
@@ -64,7 +70,7 @@ class ArchesInstance(models.Model):
 		:raises requests.RequestException: on network or response errors
 		"""
 		url = self.url.rstrip('/') + "/search_component_data/advanced-search"
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+		with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 			return r.json()
 	def get_collections(self):
 		"""
@@ -74,7 +80,7 @@ class ArchesInstance(models.Model):
 		:rtype: dict
 		"""
 		url = self.url.rstrip('/') + "/concepts/tree/collections"
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+		with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 			return r.json()
 	def get_thesauri(self):
 		"""
@@ -84,15 +90,18 @@ class ArchesInstance(models.Model):
 		:rtype: dict
 		"""
 		url = self.url.rstrip('/') + "/concepts/tree/semantic"
-		with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
-			return r.json()
+		try:
+			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
+				return r.json()
+		except:
+			return []
 
 	def _get_search_page(self, query_string, page=1):
 		filter = [{'inverted': False, 'type': 'string', 'context': '', 'context_label': '', 'id': query_string, 'text': 'Contains Term: ' + query_string, 'value': query_string, 'selected': True}]
 		query = {'paging-filter': page, 'tiles': 'true', 'format': 'tilecsv', 'reportlink': 'true', 'language': '*', 'term-filter': json.dumps(filter)}
 		url = self.url.rstrip('/') + "/search/resources?" + urlencode(query)
 		try:
-			with requests.get(url, headers={'User-Agent': settings.USER_AGENT}) as r:
+			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
 				data = r.json()
 		except:
 			data = {}
@@ -111,7 +120,7 @@ class ArchesInstance(models.Model):
 			ret.append(x)
 		return ret
 
-	def search(self, query_string):
+	def keyword_search(self, query_string):
 		"""
 		Search the Arches instance for resources matching query_string.
 
@@ -125,6 +134,10 @@ class ArchesInstance(models.Model):
 			>>> instance.search('mosque')
 			[{'_id': '...', '_source': ...}, ...]
 		"""
+		cache_key = 'keyword_' + str(self.pk) + '_' + hashlib.sha1(query_string.lower().encode('utf8')).hexdigest()
+		ret = cache.get(cache_key)
+		if not ret is None:
+			return ret
 		ret = []
 		dt_limit = datetime.datetime.now() + datetime.timedelta(seconds=settings.ARCHES_SEARCH_TIMEOUT)
 		i = 1
@@ -136,6 +149,7 @@ class ArchesInstance(models.Model):
 			if datetime.datetime.now() >= dt_limit:
 				break
 			ret = ret + page
+		cache.set(cache_key, ret, 900) # Cache the results for 15 minutes
 		return ret
 	
 	def __str__(self):
@@ -221,7 +235,8 @@ class Thesaurus(models.Model):
 	
 	def load_skos(self):
 		g = Graph()
-		g.parse(self.skos_url, format='xml')
+		with requests.get(self.skos_url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
+			g.parse(data=r.content, format='xml')
 		return g
 	
 	def build_description(self):
@@ -241,13 +256,83 @@ class Concept(models.Model):
 	
 	@property
 	def uri(self):
-		return str(self.thesaurus.instance.url).rstrip('/') + '/' + str(self.conceptid)
+		return str(self.thesaurus.instance.url).rstrip('/') + '/concepts/' + str(self.conceptid)
+
+	def _get_search_page(self, page=1):
+		filter = [{'inverted': False, 'type': 'concept', 'value': str(self.conceptid), 'selected': True}]
+		query = {'paging-filter': page, 'tiles': 'true', 'format': 'tilecsv', 'reportlink': 'true', 'language': '*', 'term-filter': json.dumps(filter)}
+		url = str(self.thesaurus.instance.url).rstrip('/') + "/search/resources?" + urlencode(query)
+		print(url)
+		try:
+			with requests.get(url, verify=False, headers={'User-Agent': settings.USER_AGENT}) as r:
+				data = r.json()
+		except:
+			data = {}
+		if not 'results' in data:
+			return []
+		if not 'hits' in data['results']:
+			return []
+		if not 'hits' in data['results']['hits']:
+			return []
+		ret = []
+		for x in data['results']['hits']['hits']:
+			if '_source' in x:
+				x['_source']['source'] = {"url": str(self.thesaurus.instance.url), "label": str(self.thesaurus.instance.label)}
+				if 'resourceinstanceid' in x['_source']:
+					x['_source']['url'] = str(self.thesaurus.instance.url).rstrip('/') + "/report/" + str(x['_source']['resourceinstanceid'])
+			ret.append(x)
+		return ret
+
+	def search(self):
+		"""
+		Search the Arches instance for resources matching this concept.
+
+		:returns: list of results (possibly empty)
+		:rtype: list
+		"""
+		ret = []
+		dt_limit = datetime.datetime.now() + datetime.timedelta(seconds=settings.ARCHES_SEARCH_TIMEOUT)
+		i = 1
+		while True:
+			page = self._get_search_page(i)
+			i = i + 1
+			if len(page) == 0:
+				break
+			if datetime.datetime.now() >= dt_limit:
+				break
+			ret = ret + page
+		return ret
+
+	def rdf(self):
+		g = Graph()
+		s = URIRef(self.uri)
+		g.add((s, RDF.type, SKOS.Concept))
+		for pred in self.predicates.all():
+			if not hasattr(SKOS, pred.property):
+				continue
+			g.add((s, getattr(SKOS, pred.property), URIRef(pred.object.uri)))
+		for pred in self.predicates_rev.all():
+			if not hasattr(SKOS, pred.property):
+				continue
+			g.add((URIRef(pred.subject.uri), getattr(SKOS, pred.property), s))
+		for prop in self.properties.all():
+			prop_uri = None
+			for ns in [SKOS, DC, DCTERMS, RDF, DOAP, VOID, XSD, FOAF]:
+				if hasattr(ns, prop.property):
+					prop_uri = getattr(ns, prop.property)
+					break
+			if prop_uri is None:
+				continue
+			g.add((s, prop_uri, Literal(prop.value, lang=prop.lang)))
+
+		return g
+
+	def __str__(self):
+		return str(self.thesaurus) + ' / ' + str(self.label)
 
 	class Meta:
 		unique_together = ('thesaurus', 'conceptid',)
 
-	def __str__(self):
-		return str(self.thesaurus) + ' / ' + str(self.label)
 
 class ConceptProperty(models.Model):
 
@@ -262,3 +347,11 @@ class ConceptPredicate(models.Model):
 	subject = models.ForeignKey(Concept, on_delete=models.CASCADE, related_name='predicates')
 	property = models.SlugField(max_length=128)
 	object = models.ForeignKey(Concept, on_delete=models.CASCADE, related_name='predicates_rev')
+
+class ConceptContext(models.Model):
+
+	contextid = models.UUIDField(default=uuid.uuid4)
+	concept = models.ForeignKey(Concept, on_delete=models.CASCADE, related_name='contexts')
+	label = models.CharField(max_length=128, blank=True, null=True)
+	class Meta:
+		unique_together = ('concept', 'contextid',)

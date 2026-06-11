@@ -1,39 +1,6 @@
+{% extends 'search/base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html class="no-js theme-auto center-alignment-yes" lang="en-EN" >
-<head>
-  <meta charset="UTF-8">
-  <meta name="endpoint" content="index">
-  <meta name="description" content="A meta-search engine for Arches instances.">
-  <meta name="referrer" content="no-referrer">
-  <meta name="robots" content="noarchive">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Viaduct</title>
-  <link rel="stylesheet" href="{% static 'css/search.css' %}" type="text/css" media="screen">
-  <link rel="stylesheet" href="{% static 'js/leaflet/leaflet.css' %}" type="text/css" media="screen">
-  <script src="{% static 'js/leaflet/leaflet.js' %}"></script>
-  <script src="{% static 'js/viaduct/viaduct.js' %}"></script>
-</head>
-<body class="index_endpoint" >
-  <main id="main_index" class="">
 
-{% include 'search/login_panel.html' %}
-
-<div class="index">
-    <div class="title"><h1>viaduct</h1></div>
-<form id="search" method="POST" action="/search" role="search">{% csrf_token %}
-  <div id="search_header">
-    <div id="search_view">
-      <div class="search_box">
-        <input id="q" name="q" type="text" placeholder="Search for..." autocomplete="off" autocapitalize="none" spellcheck="false" autocorrect="off" dir="auto" value="">
-        <button id="clear_search" type="reset" aria-label="clear"><span class="hide_if_nojs"><svg viewBox="0 0 512 512" class="ionicon sxng-icon-set-big" aria-hidden="true"><path d="M368 368 144 144M368 144 144 368" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32px"/></svg></span><span class="show_if_nojs">clear</span></button>
-        <button id="send_search" type="submit" aria-label="search"><span class="hide_if_nojs"><svg viewBox="0 0 512 512" class="ionicon sxng-icon-set-big" aria-hidden="true"><path d="M221.09 64a157.09 157.09 0 1 0 157.09 157.09A157.1 157.1 0 0 0 221.09 64Z" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32px"/><path d="M338.29 338.29 448 448" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32px"/></svg></span><span class="show_if_nojs">search</span></button>
-        <div class="autocomplete hide_if_nojs"><ul></ul></div>
-      </div>
-    </div>
-  </div>
-</form></div>
-  </main>
-  {% include 'search/footer.html' %}
-</body>
-</html>
+{% block content %}
+{% include 'search/search_page.html' %}
+{% endblock %}

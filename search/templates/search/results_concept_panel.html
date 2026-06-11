@@ -1,0 +1,16 @@
+<label>
+  <aside class="infobox">
+    <h2 class="title">{{ concept.label }}</h2>
+    <div class="attributes">
+    <dl>
+        <dt><bdi>URI : </bdi></dt>
+        <dd><bdi>{{ concept.uri }}</bdi></dd>
+    </dl>
+    <dl>
+        <dt><bdi>Source : </bdi></dt>
+        <dd><bdi>{{ concept.source }}</bdi></dd>
+    </dl>
+    </div>
+  </aside>
+  <input class="infobox-highlight" type="checkbox" id="concept_{{ concept.pk }}" name="concept_{{ concept.pk }}" />
+</label>

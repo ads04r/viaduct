@@ -21,6 +21,7 @@ INSTALLED_APPS = [
 	'django.contrib.sessions',
 	'django.contrib.messages',
 	'django.contrib.staticfiles',
+	'adminlte3',
 	'rest_framework',
 	'api.apps.ApiConfig',
 	'search.apps.SearchConfig',
@@ -75,7 +76,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly']}
 USER_AGENT = 'Viaduct/0.1'
-ARCHES_SEARCH_TIMEOUT = 5
+ARCHES_SEARCH_TIMEOUT = 30
 
 # Load any local overrides (not tracked here).
 from .settings_local import *
